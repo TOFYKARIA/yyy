@@ -1,24 +1,21 @@
-from telethon import TelegramClient, events, functions
+from telethon import TelegramClient, events, functions, types
 import asyncio
 import random
-import time
 import aiohttp
 import logging
+import pytz  # Импортируем pytz для работы с часовыми поясами
+from datetime import datetime
 
 # Конфигурация
 prefixes = ['.', '/', '!', '-']
 logger = logging.getLogger(__name__)
 
 async def setup_client():
-    """Запросить у пользователя API ID и API Hash при запуске"""
     print("Добро пожаловать в ShadowBot!")
     print("Для начала работы нужно настроить API.")
     print("Получите API данные на my.telegram.org")
-    
     api_id = input("Введите API ID: ")
     api_hash = input("Введите API Hash: ")
-    
-    # Создаем новый клиент с уникальной сессией
     return TelegramClient('session_name', api_id, api_hash)
 
 @events.register(events.NewMessage(pattern=f'[{"".join(prefixes)}]help'))
@@ -31,7 +28,7 @@ async def help_handler(event):
 • 💧.anime [nsfw] - отправить случайное аниме фото
 • 💧.im [режим] - запустить имитацию (режимы: typing/voice/video/game/mixed)
 • 💧.imstop - остановить имитацию
-• 💧.mozg [yes/no] - включить/выключить MegaMozg
+• 💧.mozg [on/off] - включить/выключить MegaMozg
 • 💧.mozgchance [число] - установить шанс ответа MegaMozg (1 к N)
 • 💧.time - включить/выключить время в нике
 • 💧.time_msk - установить московское время
@@ -71,7 +68,9 @@ async def anime_handler(event):
 
 @events.register(events.NewMessage(pattern=f'[{"".join(prefixes)}]im'))
 async def im_handler(event):
-    """Запустить имитацию"""
+    """Запустить имитацию: .im <режим>
+    Режимы: typing/voice/video/game/mixed"""
+
     args = event.raw_text.split()[1] if len(event.raw_text.split()) > 1 else "mixed"
     mode = args.lower()
     chat_id = event.chat_id
@@ -128,8 +127,6 @@ async def imstop_handler(event):
 
     await event.edit("🚫 Имитация остановлена")
 
-_db_name = "MegaMozg"
-
 # Для времени в нике
 _time_running = False
 _time_timezone = 'Europe/Moscow'
@@ -140,10 +137,10 @@ async def time_handler(event):
     global _time_running
     if _time_running:
         _time_running = False
-        await event.edit("<b>Обновление времени в нике остановлено</b>")
+        await event.edit("Обновление времени в нике остановлено")
     else:
         _time_running = True
-        await event.edit("<b>Обновление времени в нике запущено</b>")
+        await event.edit("Обновление времени в нике запущено")
         asyncio.create_task(update_nick(event.client))
 
 @events.register(events.NewMessage(pattern=f'[{"".join(prefixes)}]time_msk'))
@@ -151,28 +148,28 @@ async def time_msk_handler(event):
     """Переключить время на МСК"""
     global _time_timezone
     _time_timezone = 'Europe/Moscow'
-    await event.edit("<b>Время в нике будет отображаться по МСК</b>")
+    await event.edit("Время в нике будет отображаться по МСК")
 
 @events.register(events.NewMessage(pattern=f'[{"".join(prefixes)}]time_ekb'))
 async def time_ekb_handler(event):
     """Переключить время на ЕКБ"""
     global _time_timezone
     _time_timezone = 'Asia/Yekaterinburg'
-    await event.edit("<b>Время в нике будет отображаться по ЕКБ</b>")
+    await event.edit("Время в нике будет отображаться по ЕКБ")
 
 @events.register(events.NewMessage(pattern=f'[{"".join(prefixes)}]time_omsk'))
 async def time_omsk_handler(event):
     """Переключить время на Омск"""
     global _time_timezone
     _time_timezone = 'Asia/Omsk'
-    await event.edit("<b>ура омское время установлено</b>")
+    await event.edit("Установлено омское время")
 
 @events.register(events.NewMessage(pattern=f'[{"".join(prefixes)}]time_samara'))
 async def time_samara_handler(event):
     """Переключить время на Самару"""
     global _time_timezone
     _time_timezone = 'Europe/Samara'
-    await event.edit("<b>часовой пояс успешно изменён на Самару!</b>")
+    await event.edit("Часовой пояс успешно изменён на Самару!")
 
 async def update_nick(client):
     while _time_running:
@@ -214,34 +211,66 @@ async def mozg_handler(event):
     args = event.raw_text.split(maxsplit=1)[1] if len(event.raw_text.split()) > 1 else ""
     
     if args.lower() not in ["on", "off"]:
-        await event.edit("<b>[MegaMozg]</b> Используйте: .mozg on или .mozg off")
+        await event.edit("Используйте: .mozg on или .mozg off")
         return
         
     if args.lower() == "on":
-        chats = db.get(_db_name, {}).get("chats", [])
-        chats.append(chat)
-        chats = list(set(chats))
-        db.setdefault(_db_name, {})["chats"] = chats
-        await event.edit("<b>[MegaMozg]</b> Включён")
+        chats = db.get("MegaMozg", {}).get("chats", [])
+        if chat not in chats:
+            chats.append(chat)
+        db.setdefault("MegaMozg", {})["chats"] = chats
+        await event.edit("Включён MegaMozg")
     else:
-        chats = db.get(_db_name, {}).get("chats", [])
+        chats = db.get("MegaMozg", {}).get("chats", [])
         try:
             chats.remove(chat)
-        except:
+        except ValueError:
             pass
-        chats = list(set(chats))
-        db.setdefault(_db_name, {})["chats"] = chats
-        await event.edit("<b>[MegaMozg]</b> Выключен")
+        db.setdefault("MegaMozg", {})["chats"] = chats
+        await event.edit("Выключен MegaMozg")
 
 @events.register(events.NewMessage(pattern=f'[{"".join(prefixes)}]mozgchance'))
 async def mozgchance_handler(event):
     """Установить шанс ответа 1 к N"""
     args = event.raw_text.split(maxsplit=1)[1] if len(event.raw_text.split()) > 1 else ""
     if args.isdigit():
-        db.setdefault(_db_name, {})["chance"] = int(args)
-        await event.edit(f"<b>[MegaMozg]</b> {args}")
+        db.setdefault("MegaMozg", {})["chance"] = int(args)
+        await event.edit(f"Шанс установлен: 1 к {args}")
     else:
-        await event.edit("<b>[MegaMozg]</b> Нужен аргумент")
+        await event.edit("Нужен аргумент (число)")
+
+@events.register(events.NewMessage())
+async def mozg_watcher(event):
+    if not isinstance(event, types.Message):
+        return
+    if event.sender_id == (await event.client.get_me()).id or not event.chat:
+        return
+    if event.chat.id not in db.get("MegaMozg", {}).get("chats", []):
+        return
+    ch = db.get("MegaMozg", {}).get("chance", 0)
+    if ch != 0 and random.randint(0, ch) != 0:
+        return
+
+    text = event.raw_text
+    words = {random.choice(list(filter(lambda x: len(x) >= 3, text.split()))) for _ in ".."}
+    msgs = []
+    for word in words:
+        async for x in event.client.iter_messages(event.chat.id, search=word):
+            if x.replies and x.replies.max_id:
+                msgs.append(x)
+    if not msgs:
+        return
+
+    replier = random.choice(msgs)
+    sid = replier.id
+    eid = replier.replies.max_id
+    msgs = []
+    async for x in event.client.iter_messages(event.chat.id, ids=list(range(sid + 1, eid + 1))):
+        if x and x.reply_to and x.reply_to.reply_to_msg_id == sid:
+            msgs.append(x)
+    if msgs:
+        msg = random.choice(msgs)
+        await event.reply(msg)
 
 async def main():
     client = await setup_client()
@@ -253,6 +282,7 @@ async def main():
         imstop_handler,
         mozg_handler,
         mozgchance_handler,
+        mozg_watcher,
         time_handler,
         time_msk_handler,
         time_ekb_handler,
