@@ -8,8 +8,8 @@ from datetime import datetime
 import pytz
 
 # Задайте свои API ID и API Hash
-api_id = 'YOUR_API_ID'  # Замените на ваш API ID
-api_hash = 'YOUR_API_HASH'  # Замените на ваш API Hash
+api_id = '28067724'  # Замените на ваш API ID
+api_hash = '44a47c3a848f2dcafbd9c3483c4f8c5e'  # Замените на ваш API Hash
 
 # Конфигурация
 prefixes = ['.', '/', '!', '-']
